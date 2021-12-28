@@ -1,0 +1,13 @@
+(library
+ (name aez)
+ (package lmoch)
+ (modules_without_implementation sig))
+
+(include_subdirs unqualified)
+
+; removing unused warnings
+
+(env
+ (dev
+  (flags
+   (:standard -w -27-32-38))))
