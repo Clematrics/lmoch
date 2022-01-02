@@ -1,6 +1,7 @@
 (library
  (name aez)
  (package lmoch)
+ (libraries num unix)
  (modules_without_implementation sig))
 
 (include_subdirs unqualified)
