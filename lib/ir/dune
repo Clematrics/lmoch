@@ -1,0 +1,4 @@
+(library
+ (name ir)
+ (package lmoch)
+ (libraries common frontend))

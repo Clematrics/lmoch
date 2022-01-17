@@ -306,16 +306,16 @@ end = struct
   let rec print fmt phi =
     match phi with
     | Lit a -> Literal.LT.print fmt a
-    | Comb (Not, [ f ]) -> fprintf fmt "not (%a)" print f
-    | Comb (And, l) -> fprintf fmt "(%a)" (print_list "and") l
-    | Comb (Or, l) -> fprintf fmt "(%a)" (print_list "or") l
-    | Comb (Imp, [ f1; f2 ]) -> fprintf fmt "(%a => %a)" print f1 print f2
+    | Comb (Not, [ f ]) -> fprintf fmt "not (@[<hv 2>%a@])" print f
+    | Comb (And, l) -> fprintf fmt "(@[<hv 2>%a@])" (print_list "and") l
+    | Comb (Or, l) -> fprintf fmt "(@[<hv 2>%a@]))" (print_list "or") l
+    | Comb (Imp, [ f1; f2 ]) -> fprintf fmt "(@[<hv 2>%a@ =>@ %a@])" print f1 print f2
     | _ -> assert false
 
   and print_list sep fmt = function
     | [] -> ()
     | [ f ] -> print fmt f
-    | f :: l -> fprintf fmt "%a %s %a" print f sep (print_list sep) l
+    | f :: l -> fprintf fmt "%a@ %s@ %a" print f sep (print_list sep) l
 
   let f_true = Lit Literal.LT.vrai
   let f_false = Lit Literal.LT.faux

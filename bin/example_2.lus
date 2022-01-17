@@ -1,0 +1,21 @@
+node thermostat (actual_temp, target_temp, margin: real)
+returns (cool, heat: bool) ;
+let
+	cool = (actual_temp - target_temp) > margin ;
+	heat = (actual_temp - target_temp) < -margin ;
+tel
+
+node therm_control (actual: real; up, down: bool)
+returns (ok: bool) ;
+var target, margin: real; heat, cool: bool ;
+let
+	margin = 1.5 ;
+	target = 70.0 ;
+	-- target = 70.0 -> if down then (pre target) - 1.0
+	-- else if up then (pre target) + 1.0
+	-- else pre target ;
+	-- (cool, heat) = thermostat (actual, target, margin) ;
+	cool = actual - target > margin ;
+	heat = actual - target < -margin ;
+	ok = (target - margin > actual or actual > target + margin) => cool or heat;
+tel

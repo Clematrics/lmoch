@@ -1,4 +1,4 @@
 (library
  (name lmoch)
  (public_name lmoch)
- (libraries frontend backend backend_aez backend_z3))
+ (libraries common ir frontend backend_aez))

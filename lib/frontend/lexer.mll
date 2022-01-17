@@ -10,27 +10,27 @@
     let h = Hashtbl.create 17 in
     List.iter (fun (s,k) -> Hashtbl.add h s k)
       [
-	"and", AND;
-	"bool", BOOL;
-	"const", CONST;
-        "div", DIV;
-	"else", ELSE;
-	"end", END;
-	"false", CONST_BOOL(false);
-	"if", IF;
-	"int", INT;
-	"let", LET;
-	"mod", MOD;
-	"node", NODE;
-	"not", NOT;
-	"or", OR;
-        "pre", PRE;
-	"real", REAL;
-	"returns", RETURNS;
-	"tel", TEL;
-	"then", THEN;
-	"true", CONST_BOOL(true);
-	"var", VAR;
+		"and", AND;
+		"bool", BOOL;
+		"const", CONST;
+		"div", DIV;
+		"else", ELSE;
+		"end", END;
+		"false", CONST_BOOL(false);
+		"if", IF;
+		"int", INT;
+		"let", LET;
+		"mod", MOD;
+		"node", NODE;
+		"not", NOT;
+		"or", OR;
+		"pre", PRE;
+		"real", REAL;
+		"returns", RETURNS;
+		"tel", TEL;
+		"then", THEN;
+		"true", CONST_BOOL(true);
+		"var", VAR;
       ];
     fun s ->
       try Hashtbl.find h s with Not_found -> IDENT s
