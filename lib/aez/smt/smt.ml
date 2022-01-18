@@ -309,7 +309,8 @@ end = struct
     | Comb (Not, [ f ]) -> fprintf fmt "not (@[<hv 2>%a@])" print f
     | Comb (And, l) -> fprintf fmt "(@[<hv 2>%a@])" (print_list "and") l
     | Comb (Or, l) -> fprintf fmt "(@[<hv 2>%a@]))" (print_list "or") l
-    | Comb (Imp, [ f1; f2 ]) -> fprintf fmt "(@[<hv 2>%a@ =>@ %a@])" print f1 print f2
+    | Comb (Imp, [ f1; f2 ]) ->
+        fprintf fmt "(@[<hv 2>%a@ =>@ %a@])" print f1 print f2
     | _ -> assert false
 
   and print_list sep fmt = function

@@ -1,0 +1,9 @@
+node not_gate(in: bool) returns (out: bool);
+let
+	out = not in;
+tel;
+
+node main(in: bool) returns (out: bool);
+let
+   out = not_gate(in) ;
+tel;
