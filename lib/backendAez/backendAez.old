@@ -71,7 +71,7 @@ let logical_combinator comb fs =
 let rec instantiate_node ?(inst_cnt = ref 0) ?(inst_name = "") nodes time_expr
     node =
   let equalities = ref [] in
-  let { name; inputs; variables; outputs; equations } = node in
+  let { name; inputs; variables; outputs; equations ; _ } = node in
   let inst_name = inst_name ^ "_" ^ name ^ string_of_int !inst_cnt in
   let instantiate = instantiate_node ~inst_cnt ~inst_name nodes in
   (* let time = try_leaf @@ declare_stream (inst_name ^ "_n") Integer in *)

@@ -13,13 +13,11 @@
 
 (** {b Hash-consed strings}
 
-    Hash-consing is a technique to share values that are structurally
-    equal. More details on 
-    {{:http://en.wikipedia.org/wiki/Hash_consing} Wikipedia} and
+    Hash-consing is a technique to share values that are structurally equal.
+    More details on {{:http://en.wikipedia.org/wiki/Hash_consing} Wikipedia} and
     {{:http://www.lri.fr/~filliatr/ftp/publis/hash-consing2.pdf} here}.
 
-    This module provides an easy way to use hash-consing for strings.
-*)
+    This module provides an easy way to use hash-consing for strings. *)
 
 open Hashcons
 
@@ -49,10 +47,11 @@ val empty : t
 val list_assoc : t -> (t * 'a) list -> 'a
 (** [list_assoc x l] returns the element associated with [x] in the list of
     pairs [l].
+
     @raise Not_found if there is no value associated with [x] in the list [l].*)
 
 val list_mem_assoc : t -> (t * 'a) list -> bool
-(** Same as {! list_assoc}, but simply returns [true] if a binding exists, and
+(** Same as {!list_assoc}, but simply returns [true] if a binding exists, and
     [false] if no bindings exist for the given key.*)
 
 val list_mem : t -> t list -> bool

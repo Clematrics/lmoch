@@ -1,4 +1,0 @@
-(library
- (name backend_aez)
- (package lmoch)
- (libraries aez common ir))

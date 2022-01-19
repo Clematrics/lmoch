@@ -70,8 +70,8 @@ module Make (X : Sig.X) = struct
     gamma : env;
     gamma_finite : env;
     choices : (X.r A.view * Num.num * choice_sign * Ex.t) list;
-        (** the choice, the size, choice_sign,  the explication set,
-        the explication for this choice. *)
+        (** the choice, the size, choice_sign, the explication set, the
+            explication for this choice. *)
   }
 
   module Print = struct

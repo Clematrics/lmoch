@@ -1,2 +1,3 @@
 profile = default
+parse-docstrings=true
 version = 0.20.1

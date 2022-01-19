@@ -1,0 +1,4 @@
+(library
+ (name backendZ3)
+ (package lmoch)
+ (libraries backend common ir z3))

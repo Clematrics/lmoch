@@ -1,0 +1,5 @@
+(library
+ (name backend)
+ (package lmoch)
+ (modules_without_implementation backend)
+ (libraries ir))

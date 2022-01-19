@@ -1,15 +1,14 @@
-type stream_id = int
 type stream_type = Boolean | Integer | Real | Tuple of stream_type list
-type node_id = int
+type stream = { name : string; ty : stream_type }
 
 type term =
   | N (* time *)
   | Bool of bool
   | Int of int
   | Float of float
-  | Var of stream_id * string * term (* id * time *)
+  | Var of stream * term
   | TupleTerm of term list
-  | Function of node_id * term * term list (* id * time * args *)
+  | Function of string * term * term list (* name * time * args *)
   | Add of term list
   | Sub of term * term
   | Neg of term
@@ -19,6 +18,7 @@ type term =
   | IfThenElse of formula * term * term
   | IntOfReal of term
   | RealOfInt of term
+  | Formula of formula * term
 
 and formula =
   | Term of term
@@ -33,6 +33,15 @@ and formula =
   | Greater of term * term
   | GreaterOrEqual of term * term
 
+type node = {
+  name : string;
+  original_name : string;
+  inputs : stream list;
+  variables : stream list;
+  outputs : stream list;
+  equations : formula list;
+}
+
 let rec print_term fmt =
   let open Format in
   function
@@ -40,15 +49,15 @@ let rec print_term fmt =
   | Bool b -> fprintf fmt "%a" pp_print_bool b
   | Int i -> fprintf fmt "%a" pp_print_int i
   | Float f -> fprintf fmt "%f" f
-  | Var (id, name, t) -> fprintf fmt "var(%d, %s, %a)" id name print_term t
+  | Var (var, time) -> fprintf fmt "var(%s, %a)" var.name print_term time
   | TupleTerm l ->
       fprintf fmt "(@[<h>%a@])"
         (pp_print_list
            ~pp_sep:(fun fmt () -> pp_print_string fmt ", ")
            print_term)
         l
-  | Function (id, time, exprs) ->
-      fprintf fmt "func(@[<h>%d, %a, %a@])" id print_term time
+  | Function (name, time, exprs) ->
+      fprintf fmt "func(@[<h>%s, %a, %a@])" name print_term time
         (pp_print_list
            ~pp_sep:(fun fmt () -> pp_print_string fmt ", ")
            print_term)
@@ -70,10 +79,12 @@ let rec print_term fmt =
   | Div (x, y) -> fprintf fmt "(%a / %a)" print_term x print_term y
   | Mod (x, y) -> fprintf fmt "(%a %% %a)" print_term x print_term y
   | IfThenElse (cond, t1, t2) ->
-      fprintf fmt "(if@ %a@ then@ %a@ else@ %a)" print_formula cond print_term
-        t1 print_term t2
+      fprintf fmt
+        "(@[<v>@[<v 2>if@ %a@]@ @[<v 2>then@ %a@]@ @[<v 2>else@ %a@]@])"
+        print_formula cond print_term t1 print_term t2
   | IntOfReal t -> fprintf fmt "int(%a)" print_term t
   | RealOfInt t -> fprintf fmt "real(%a)" print_term t
+  | Formula (f, _) -> print_formula fmt f
 
 and print_formula fmt =
   let open Format in
@@ -82,22 +93,22 @@ and print_formula fmt =
   | Imply (p, q) ->
       fprintf fmt "@[<h>%a@ =>@ %a@]" print_formula p print_formula q
   | And l ->
-      fprintf fmt "(@[<hv 2>%a@])"
+      fprintf fmt "(and@[<v 2>@ %a@])"
         (pp_print_list
-           ~pp_sep:(fun fmt () -> pp_print_string fmt " /\\ ")
+           (* ~pp_sep:(fun fmt () -> pp_print_string fmt " /\\ ") *)
            print_formula)
         l
   | Or l ->
-      fprintf fmt "(@[<hv 2>%a@])"
+      fprintf fmt "(or@[<v 2>@ %a@])"
         (pp_print_list
-           ~pp_sep:(fun fmt () -> pp_print_string fmt " \\/ ")
+           (* ~pp_sep:(fun fmt () -> pp_print_string fmt " \\/ ") *)
            print_formula)
         l
   | Not f -> fprintf fmt "~%a" print_formula f
   | Equal l ->
-      fprintf fmt "(@[<hv 2>%a@])"
+      fprintf fmt "(=@[<v 2>@ %a@])"
         (pp_print_list
-           ~pp_sep:(fun fmt () -> pp_print_string fmt "=")
+           (* ~pp_sep:(fun fmt () -> pp_print_string fmt "=") *)
            print_term)
         l
   | NotEqual (x, y) -> fprintf fmt "%a <> %a" print_term x print_term y
@@ -106,8 +117,8 @@ and print_formula fmt =
   | Greater (x, y) -> fprintf fmt "%a > %a" print_term x print_term y
   | GreaterOrEqual (x, y) -> fprintf fmt "%a >= %a" print_term x print_term y
 
-open Common
-
+(*
+  open Common
 type node = {
   name : string;
   inputs : (stream_id * string * stream_type) list;
@@ -287,4 +298,4 @@ let of_node (ctx : context) (node : t_node) =
 let of_file (file : t_file) =
   let ctx = create_context () in
   List.iter (of_node ctx) file;
-  ctx
+  ctx *)

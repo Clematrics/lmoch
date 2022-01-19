@@ -12,13 +12,13 @@ module Graph = Set.Make (struct
     if c <> 0 then c else S.compare s1 s2
 end)
 
-(** [add_vars_of_patt s patt] ajoute à l'ensemble [s] les variables
-    introduites par le motif [patt]. *)
+(** [add_vars_of_patt s patt] ajoute à l'ensemble [s] les variables introduites
+    par le motif [patt]. *)
 let add_vars_of_patt s { tpatt_desc = p; _ } =
   List.fold_left (fun s x -> S.add x s) s p
 
-(** [add_vars_of_exp s exp] ajoute à l'ensemble [s] les variables
-    dont l'expression [exp] dépend instantanément. *)
+(** [add_vars_of_exp s exp] ajoute à l'ensemble [s] les variables dont
+    l'expression [exp] dépend instantanément. *)
 let rec add_vars_of_exp s { texpr_desc = e; _ } =
   match e with
   | TE_const _ -> s
