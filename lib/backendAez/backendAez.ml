@@ -7,6 +7,7 @@ open Smt
 type time_term = Term.t
 type constraints = Formula.t
 type constraint_builder = time_term -> constraints
+type counter_example = unit
 
 let name = "Alt-Ergo Zero"
 
@@ -179,7 +180,7 @@ let make_delta_p ctx node_name =
   in
   (delta_incr, p_incr)
 
-exception FalseProperty of int
+exception FalseProperty of int * counter_example
 exception TrueProperty of int
 exception DontKnow of int
 
@@ -201,7 +202,7 @@ let k_induction ?(max = 20) delta_incr p_incr =
       Bmc.check ();
       Bmc.entails ~id:0 (p_incr (Term.make_int (Num.num_of_int k)))
     in
-    if not base then raise @@ FalseProperty k;
+    if not base then raise @@ FalseProperty (k, ());
     let ind =
       Ind.assume ~id:0
         (delta_incr
@@ -220,3 +221,6 @@ let k_induction ?(max = 20) delta_incr p_incr =
     iteration (k + 1)
   in
   iteration 0
+
+let pp_counter_example fmt () =
+  Format.fprintf fmt "Counter examples are not supported with Alt-Ergo Zero"

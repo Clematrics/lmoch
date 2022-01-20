@@ -76,15 +76,14 @@ let solve (module B : BACKEND) ctx node_name =
   let node = Context.find ctx transformed_name in
   if !verbose then (
     Format.printf ">>> Equations after transformations@.";
-    List.iter (Format.printf "%a@." Ir.Ast.print_formula) node.equations;
-  );
+    List.iter (Format.printf "%a@." Ir.Ast.print_formula) node.equations);
   let delta, p = B.make_delta_p ctx node.name in
   try B.k_induction delta p 0 with
-  | B.FalseProperty k ->
+  | B.FalseProperty (k, counter_example) ->
       printf
         "False property! Delta_0, ..., Delta_%i does not entail P_0, ..., \
-         P_%i@."
-        k k
+         P_%i@.%a@."
+        k k B.pp_counter_example counter_example
   | B.TrueProperty k -> printf "True property, proved after a %d-induction@." k
   | B.DontKnow k ->
       printf "Could not prove anything, stopped after a %d-induction@." k
@@ -111,7 +110,8 @@ let () =
     let ctx = CompileIr.of_file ft in
     if !use_z3 then solve (module BackendZ3) ctx main_node;
     if !use_aez then solve (module BackendAez) ctx main_node;
-    if (not !use_z3) && not !use_aez then raise (Arg.Bad "No backend selected. Use -z3 or -aez to select one");
+    if (not !use_z3) && not !use_aez then
+      raise (Arg.Bad "No backend selected. Use -z3 or -aez to select one");
     exit 0
   with
   | Lexical_error s ->

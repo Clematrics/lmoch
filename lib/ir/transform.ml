@@ -384,6 +384,10 @@ let rec no_tuples ctx node_name =
   Context.replace ctx node;
   new_name
 
+(* ----------------------------- *)
+(* Separating terms and formulas *)
+(* ----------------------------- *)
+
 (** Create a new node in which boolean streams have nontrivial boolean terms
     replaced by new boolean streams equivalent to the formula replaced *)
 let no_formula_in_term ctx node_name =

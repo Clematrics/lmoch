@@ -5,9 +5,9 @@ open Z3
 type time_term = Expr.expr
 type constraints = Expr.expr list
 type constraint_builder = time_term -> constraints
+type counter_example = Model.model
 
 let name = "Z3"
-
 let required_transformations = Transform.[ FullInlining; NoTuples ]
 let ctx = mk_context []
 let bool_sort = Boolean.mk_sort ctx
@@ -123,7 +123,7 @@ let make_delta_p ctx node_name =
   in
   (delta_incr, p_incr)
 
-exception FalseProperty of int
+exception FalseProperty of int * counter_example
 exception TrueProperty of int
 exception DontKnow of int
 
@@ -138,26 +138,7 @@ let check_assumptions solver =
 let check_entails solver =
   let res = Solver.check solver [] in
   match res with
-  | SATISFIABLE ->
-      let exprs = Solver.get_assertions solver in
-      let model = Option.get (Solver.get_model solver) in
-      let funcs = Model.get_func_decls model in
-      let func_vals =
-        List.filter_map
-          (fun func ->
-            let sym = FuncDecl.get_name func in
-            Option.map
-              (fun interp -> (sym, interp))
-              (Model.get_func_interp model func))
-          funcs
-      in
-      List.iter
-        (fun (sym, e) ->
-          Format.printf "%s : %s@." (Symbol.to_string sym)
-            (Model.FuncInterp.to_string e))
-        func_vals;
-      List.iter (fun e -> Format.printf "%s@." (Expr.to_string e)) exprs;
-      false
+  | SATISFIABLE -> false
   | UNSATISFIABLE -> true
   | UNKNOWN ->
       raise (Error "It is unknown whether assumptions are consistent or not")
@@ -171,7 +152,7 @@ let k_induction ?(max = 20) delta_incr p_incr =
      :: delta_incr n;
   let rec iteration k =
     if k > max then raise (DontKnow k);
-    let base =
+    let base, model_opt =
       Solver.add bmc_solver
       @@ delta_incr (Arithmetic.Integer.mk_numeral_i ctx k);
       check_assumptions bmc_solver;
@@ -183,10 +164,11 @@ let k_induction ?(max = 20) delta_incr p_incr =
                (p_incr (Arithmetic.Integer.mk_numeral_i ctx k)));
         ];
       let res = check_entails bmc_solver in
+      let model = Solver.get_model bmc_solver in
       Solver.pop bmc_solver 1;
-      res
+      (res, model)
     in
-    if not base then raise @@ FalseProperty k;
+    if not base then raise @@ FalseProperty (k, Option.get model_opt);
     let ind =
       Solver.add ind_solver
       @@ delta_incr
@@ -213,3 +195,20 @@ let k_induction ?(max = 20) delta_incr p_incr =
     iteration (k + 1)
   in
   iteration 0
+
+let pp_counter_example fmt model =
+  let funcs = Model.get_func_decls model in
+  let func_vals =
+    List.filter_map
+      (fun func ->
+        let sym = FuncDecl.get_name func in
+        Option.map
+          (fun interp -> (sym, interp))
+          (Model.get_func_interp model func))
+      funcs
+  in
+  List.iter
+    (fun (sym, e) ->
+      Format.fprintf fmt "%s : %s@." (Symbol.to_string sym)
+        (Model.FuncInterp.to_string e))
+    func_vals

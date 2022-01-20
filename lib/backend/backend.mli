@@ -12,7 +12,9 @@ type constraint_builder = time_term -> constraints
 (** the type of a the function building [Delta_incr(n)] and [P_incr(n)] from a
     term [n] *)
 
-exception FalseProperty of int
+type counter_example
+
+exception FalseProperty of int * counter_example
 exception TrueProperty of int
 exception DontKnow of int
 
@@ -28,3 +30,5 @@ val make_delta_p :
 
 val k_induction :
   ?max:int -> constraint_builder -> constraint_builder -> int -> 'a
+
+val pp_counter_example : Format.formatter -> counter_example -> unit
