@@ -8,6 +8,8 @@ type time_term = Term.t
 type constraints = Formula.t
 type constraint_builder = time_term -> constraints
 
+let name = "Alt-Ergo Zero"
+
 let required_transformations =
   Transform.[ FullInlining; NoTuples; NoFormulaInTerm ]
 

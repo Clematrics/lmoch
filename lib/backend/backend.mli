@@ -16,6 +16,8 @@ exception FalseProperty of int
 exception TrueProperty of int
 exception DontKnow of int
 
+val name : string
+
 val required_transformations : Transform.t list
 (** The list of transformations that are necessary. The order matters *)
 

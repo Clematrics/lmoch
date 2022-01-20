@@ -381,7 +381,7 @@ let rec no_tuples ctx node_name =
       equations = List.concat [ state.eqs_acc; equations ];
     }
   in
-  Context.add ctx node;
+  Context.replace ctx node;
   new_name
 
 (** Create a new node in which boolean streams have nontrivial boolean terms

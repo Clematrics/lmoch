@@ -6,6 +6,8 @@ type time_term = Expr.expr
 type constraints = Expr.expr list
 type constraint_builder = time_term -> constraints
 
+let name = "Z3"
+
 let required_transformations = Transform.[ FullInlining; NoTuples ]
 let ctx = mk_context []
 let bool_sort = Boolean.mk_sort ctx
