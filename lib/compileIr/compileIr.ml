@@ -78,12 +78,10 @@ let rec convert_to_term time_expr ctx local_ctx (expr : t_expr) =
       (* var *)
   | TE_op ((Op_sub | Op_sub_f | Op_div | Op_div_f | Op_mod | Op_if), l) ->
       Format.eprintf "%d@." (List.length l);
-      (* TODO: change WHUT *)
-      raise (Invalid_argument "Whut?")
+      raise (Invalid_argument "Invalid terms")
   | TE_prim (_, _) as t ->
       ignore t;
-      (* TODO: change WHUT *)
-      raise (Invalid_argument "Whut?")
+      raise (Invalid_argument "Invalid terms")
 
 and convert_to_formula time_expr ctx local_ctx (expr : t_expr) =
   let to_term ?(t = time_expr) = convert_to_term t ctx local_ctx in

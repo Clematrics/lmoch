@@ -25,6 +25,7 @@
 %token END
 %token EOF
 %token EQUAL
+%token FBY
 %token NEQ
 %token REAL
 %token <string> IDENT
@@ -53,6 +54,7 @@
 %nonassoc THEN
 %nonassoc ELSE
 %right ARROW
+%right FBY
 %left IMPL
 %left OR
 %left AND
@@ -189,6 +191,8 @@ expr:
     { mk_expr (PE_op (Op_impl, [$1; $3])) }
 | expr ARROW expr
     { mk_expr (PE_arrow ($1, $3)) }
+| expr FBY expr
+    { mk_expr (PE_arrow ($1, mk_expr (PE_pre ($3)))) }
 | MINUS expr /* %prec uminus */
     { mk_expr (PE_op (Op_sub, [$2])) }
 | NOT expr

@@ -17,6 +17,7 @@
 		"else", ELSE;
 		"end", END;
 		"false", CONST_BOOL(false);
+        "fby", FBY;
 		"if", IF;
 		"int", INT;
 		"let", LET;
