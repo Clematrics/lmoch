@@ -8,6 +8,7 @@ type time_term = Term.t
 type constraints = Formula.t
 type constraint_builder = time_term -> constraints
 type counter_example = unit
+type proof = unit
 
 let name = "Alt-Ergo Zero"
 
@@ -181,7 +182,7 @@ let make_delta_p ctx node_name =
   (delta_incr, p_incr)
 
 exception FalseProperty of int * counter_example
-exception TrueProperty of int
+exception TrueProperty of int * proof
 exception DontKnow of int
 
 let k_induction ?(max = 20) delta_incr p_incr =
@@ -217,10 +218,13 @@ let k_induction ?(max = 20) delta_incr p_incr =
            (Term.make_arith Term.Plus n
               (Term.make_int (Num.num_of_int (k + 1)))))
     in
-    if ind then raise @@ TrueProperty k;
+    if ind then raise @@ TrueProperty (k, ());
     iteration (k + 1)
   in
   iteration 0
 
 let pp_counter_example fmt () =
   Format.fprintf fmt "Counter examples are not supported with Alt-Ergo Zero"
+
+let pp_proof fmt () =
+  Format.fprintf fmt "Proof generation is not supported with Alt-Ergo Zero"

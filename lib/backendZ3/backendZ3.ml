@@ -6,10 +6,11 @@ type time_term = Expr.expr
 type constraints = Expr.expr list
 type constraint_builder = time_term -> constraints
 type counter_example = Model.model
+type proof = Expr.expr * Expr.expr
 
 let name = "Z3"
 let required_transformations = Transform.[ FullInlining; NoTuples ]
-let ctx = mk_context []
+let ctx = mk_context ["proof", "true"]
 let bool_sort = Boolean.mk_sort ctx
 let int_sort = Arithmetic.Integer.mk_sort ctx
 let real_sort = Arithmetic.Real.mk_sort ctx
@@ -124,7 +125,7 @@ let make_delta_p ctx node_name =
   (delta_incr, p_incr)
 
 exception FalseProperty of int * counter_example
-exception TrueProperty of int
+exception TrueProperty of int * proof
 exception DontKnow of int
 
 let check_assumptions solver =
@@ -138,8 +139,8 @@ let check_assumptions solver =
 let check_entails solver =
   let res = Solver.check solver [] in
   match res with
-  | SATISFIABLE -> false
-  | UNSATISFIABLE -> true
+  | SATISFIABLE -> false, None
+  | UNSATISFIABLE -> true, Solver.get_proof solver
   | UNKNOWN ->
       raise (Error "It is unknown whether assumptions are consistent or not")
 
@@ -152,46 +153,67 @@ let k_induction ?(max = 20) delta_incr p_incr =
      :: delta_incr n;
   let rec iteration k =
     if k > max then raise (DontKnow k);
-    let base, model_opt =
-      Solver.add bmc_solver
-      @@ delta_incr (Arithmetic.Integer.mk_numeral_i ctx k);
+    let base, model_opt, bmc_proof =
+      let assertions = delta_incr (Arithmetic.Integer.mk_numeral_i ctx k) in
+      let booleans =
+        List.mapi
+          (fun i _ ->
+            Boolean.mk_const_s ctx (Printf.sprintf "delta_incr(%d)_%d" k i))
+          assertions
+      in
+      Solver.assert_and_track_l bmc_solver assertions booleans;
       check_assumptions bmc_solver;
       Solver.push bmc_solver;
-      Solver.add bmc_solver
-        [
-          Boolean.mk_not ctx
-            (Boolean.mk_and ctx
-               (p_incr (Arithmetic.Integer.mk_numeral_i ctx k)));
-        ];
-      let res = check_entails bmc_solver in
+      Solver.assert_and_track bmc_solver
+        (Boolean.mk_not ctx
+           (Boolean.mk_and ctx (p_incr (Arithmetic.Integer.mk_numeral_i ctx k))))
+        (Boolean.mk_const_s ctx (Printf.sprintf "p_incr(%d)" k));
+      let res, proof = check_entails bmc_solver in
       let model = Solver.get_model bmc_solver in
       Solver.pop bmc_solver 1;
-      (res, model)
+      (res, model, proof)
     in
     if not base then raise @@ FalseProperty (k, Option.get model_opt);
-    let ind =
-      Solver.add ind_solver
-      @@ delta_incr
-           (Arithmetic.mk_add ctx
-              [ n; Arithmetic.Integer.mk_numeral_i ctx (k + 1) ]);
-      Solver.add ind_solver
-      @@ p_incr
-           (Arithmetic.mk_add ctx [ n; Arithmetic.Integer.mk_numeral_i ctx k ]);
+    let ind, ind_proof =
+      let delta_assertions =
+        delta_incr
+          (Arithmetic.mk_add ctx
+             [ n; Arithmetic.Integer.mk_numeral_i ctx (k + 1) ])
+      in
+      let delta_booleans =
+        List.mapi
+          (fun i _ ->
+            Boolean.mk_const_s ctx
+              (Printf.sprintf "delta_incr(n + %d)_%d" (k + 1) i))
+          delta_assertions
+      in
+      Solver.assert_and_track_l ind_solver delta_assertions delta_booleans;
+      let p_assertions =
+        p_incr
+          (Arithmetic.mk_add ctx [ n; Arithmetic.Integer.mk_numeral_i ctx k ])
+      in
+      let p_booleans =
+        List.mapi
+          (fun i _ ->
+            Boolean.mk_const_s ctx (Printf.sprintf "p_incr(n + %d)_%d" k i))
+          p_assertions
+      in
+      Solver.assert_and_track_l ind_solver p_assertions p_booleans;
       check_assumptions ind_solver;
       Solver.push ind_solver;
-      Solver.add ind_solver
-        [
-          Boolean.mk_not ctx
-            (Boolean.mk_and ctx
-               (p_incr
-                  (Arithmetic.mk_add ctx
-                     [ n; Arithmetic.Integer.mk_numeral_i ctx (k + 1) ])));
-        ];
-      let res = check_entails ind_solver in
+      Solver.assert_and_track ind_solver
+        (Boolean.mk_not ctx
+           (Boolean.mk_and ctx
+              (p_incr
+                 (Arithmetic.mk_add ctx
+                    [ n; Arithmetic.Integer.mk_numeral_i ctx (k + 1) ]))))
+        (Boolean.mk_const_s ctx (Printf.sprintf "p_incr(n + %d)" (k + 1)));
+      let res, proof = check_entails ind_solver in
       Solver.pop ind_solver 1;
-      res
+      (res, proof)
     in
-    if ind then raise @@ TrueProperty k;
+    if ind then
+      raise @@ TrueProperty (k, (Option.get bmc_proof, Option.get ind_proof));
     iteration (k + 1)
   in
   iteration 0
@@ -212,3 +234,11 @@ let pp_counter_example fmt model =
       Format.fprintf fmt "%s : %s@." (Symbol.to_string sym)
         (Model.FuncInterp.to_string e))
     func_vals
+
+let pp_proof fmt (bmc_proof, ind_proof) =
+  (* Format.fprintf fmt
+    "Proofs are disabled for Z3@." *)
+  Format.fprintf fmt
+    "Proof of the bounded model checking part:@.%s@.Proof of the inductive \
+     part:@.%s@."
+    (Expr.to_string bmc_proof) (Expr.to_string ind_proof)

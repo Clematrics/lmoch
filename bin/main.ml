@@ -12,6 +12,8 @@ let ocaml_printer = ref true
 let verbose = ref false
 let use_aez = ref false
 let use_z3 = ref false
+let proof_gen = ref false
+
 
 let spec =
   [
@@ -22,6 +24,7 @@ let spec =
     ("-v", Arg.Set verbose, "print intermediate transformations");
     ("-z3", Arg.Set use_z3, "use the Z3 backend");
     ("-aez", Arg.Set use_aez, "use the Alt-Ergo Zero backend");
+    ("-proof", Arg.Set proof_gen, "generate proofs when available");
   ]
 
 let file, main_node =
@@ -84,7 +87,10 @@ let solve (module B : BACKEND) ctx node_name =
         "False property! Delta_0, ..., Delta_%i does not entail P_0, ..., \
          P_%i@.%a@."
         k k B.pp_counter_example counter_example
-  | B.TrueProperty k -> printf "True property, proved after a %d-induction@." k
+  | B.TrueProperty (k, proof) ->
+      printf "True property, proved after a %d-induction@." k;
+      if !proof_gen then
+        printf "%a@." B.pp_proof proof
   | B.DontKnow k ->
       printf "Could not prove anything, stopped after a %d-induction@." k
   | Assert_failure (s, a, b) ->

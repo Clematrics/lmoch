@@ -13,9 +13,10 @@ type constraint_builder = time_term -> constraints
     term [n] *)
 
 type counter_example
+type proof
 
 exception FalseProperty of int * counter_example
-exception TrueProperty of int
+exception TrueProperty of int * proof
 exception DontKnow of int
 
 val name : string
@@ -32,3 +33,4 @@ val k_induction :
   ?max:int -> constraint_builder -> constraint_builder -> int -> 'a
 
 val pp_counter_example : Format.formatter -> counter_example -> unit
+val pp_proof : Format.formatter -> proof -> unit
