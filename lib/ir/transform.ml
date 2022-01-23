@@ -1,17 +1,21 @@
 open Ast
+open Common
 
 type t = FullInlining | NoTuples | NoFormulaInTerm
 
-type inlining_state = {
-  eqs_acc : formula list;
-  var_acc : stream list;
-  inst_cnt : int;
-}
-(** - [eqs_acc] accumulates the equations added by the inlining
-    - [inst_cnt] is the number of instantiations done before, to give different
-      names to every variable instantiated *)
+module InliningState = struct
+  type t = { eqs_acc : formula list; var_acc : stream list; inst_cnt : int }
+  (** - [eqs_acc] accumulates the equations added by the inlining
+      - [inst_cnt] is the number of instantiations done before, to give
+        different names to every variable instantiated *)
 
-let initial_state () = { eqs_acc = []; var_acc = []; inst_cnt = 0 }
+  let initial_state () = { eqs_acc = []; var_acc = []; inst_cnt = 0 }
+  let attach x state = (state, x)
+end
+
+open InliningState
+module S = StateManagement.Make (InliningState)
+open S
 
 type inlined_node = {
   inputs : stream list;
@@ -36,135 +40,145 @@ let rec instantiate_node ctx prefix_name node_name time_term inst_cnt =
     { name; ty }
   in
   let state = { eqs_acc = []; var_acc = []; inst_cnt = inst_cnt + 1 } in
-  let rec scan_formula state = function
+  let rec scan_formulas l state = map scan_formula l state
+  and scan_terms l state = map scan_term l state
+  and scan_formula formula =
+    match formula with
     | Term t ->
-        let next_state, t = scan_term state t in
-        (next_state, Term t)
+        let* t = scan_term t in
+        !(Term t)
     | Imply (p, q) ->
-        let state_1, p = scan_formula state p in
-        let state_2, q = scan_formula state_1 q in
-        (state_2, Imply (p, q))
+        let* p = scan_formula p in
+        let* q = scan_formula q in
+        !(Imply (p, q))
     | And fs ->
-        let next_state, fs = List.fold_left_map scan_formula state fs in
-        (next_state, And fs)
+        let* fs = scan_formulas fs in
+        !(And fs)
     | Or fs ->
-        let next_state, fs = List.fold_left_map scan_formula state fs in
-        (next_state, Or fs)
+        let* fs = scan_formulas fs in
+        !(Or fs)
     | Not f ->
-        let next_state, f = scan_formula state f in
-        (next_state, Not f)
+        let* f = scan_formula f in
+        !(Not f)
     | Equal ts ->
-        let next_state, ts = List.fold_left_map scan_term state ts in
-        (next_state, Equal ts)
+        let* ts = scan_terms ts in
+        !(Equal ts)
     | NotEqual (x, y) ->
-        let state_1, x = scan_term state x in
-        let state_2, y = scan_term state_1 y in
-        (state_2, NotEqual (x, y))
+        let* x = scan_term x in
+        let* y = scan_term y in
+        !(NotEqual (x, y))
     | Less (x, y) ->
-        let state_1, x = scan_term state x in
-        let state_2, y = scan_term state_1 y in
-        (state_2, Less (x, y))
+        let* x = scan_term x in
+        let* y = scan_term y in
+        !(Less (x, y))
     | LessOrEqual (x, y) ->
-        let state_1, x = scan_term state x in
-        let state_2, y = scan_term state_1 y in
-        (state_2, LessOrEqual (x, y))
+        let* x = scan_term x in
+        let* y = scan_term y in
+        !(LessOrEqual (x, y))
     | Greater (x, y) ->
-        let state_1, x = scan_term state x in
-        let state_2, y = scan_term state_1 y in
-        (state_2, Greater (x, y))
+        let* x = scan_term x in
+        let* y = scan_term y in
+        !(Greater (x, y))
     | GreaterOrEqual (x, y) ->
-        let state_1, x = scan_term state x in
-        let state_2, y = scan_term state_1 y in
-        (state_2, GreaterOrEqual (x, y))
-  and scan_term state = function
-    | N -> (state, time_term)
-    | (Bool _ | Int _ | Float _) as t -> (state, t)
+        let* x = scan_term x in
+        let* y = scan_term y in
+        !(GreaterOrEqual (x, y))
+  and scan_term term =
+    match term with
+    | N -> attach time_term
+    | (Bool _ | Int _ | Float _) as t -> attach t
     | Var (stream, time) ->
         let stream = localize_stream stream in
-        let next_state, time = scan_term state time in
-        (next_state, Var (stream, time))
+        let* time = scan_term time in
+        !(Var (stream, time))
     | TupleTerm ts ->
-        let next_state, ts = List.fold_left_map scan_term state ts in
-        (next_state, TupleTerm ts)
+        let* ts = scan_terms ts in
+        !(TupleTerm ts)
     | Function (name, time, args) ->
-        let state_1, function_time = scan_term state time in
-        let state_2, args = List.fold_left_map scan_term state_1 args in
-        let inst_cnt, { inputs; variables; outputs; equations } =
-          instantiate_node ctx inst_name name function_time state_2.inst_cnt
-        in
-        let arg_eqs =
-          List.map2 (fun x s -> Equal [ x; Var (s, function_time) ]) args inputs
-        in
-        let output_streams =
-          List.map (fun s -> Var (s, function_time)) outputs
-        in
-        let output =
-          match output_streams with
-          | [] ->
-              assert false (* a function returning nothing should not exists *)
-          | [ o ] -> o
-          | l -> TupleTerm l
-        in
-        ( {
-            inst_cnt;
-            eqs_acc =
-              List.(rev_append arg_eqs (rev_append equations state_2.eqs_acc));
-            var_acc =
-              List.concat [ inputs; variables; outputs; state_2.var_acc ];
-          },
-          output )
+        let* function_time = scan_term time in
+        let* args = scan_terms args in
+        fun state ->
+          let inst_cnt, { inputs; variables; outputs; equations } =
+            instantiate_node ctx inst_name name function_time state.inst_cnt
+          in
+          let arg_eqs =
+            List.map2
+              (fun x s -> Equal [ x; Var (s, function_time) ])
+              args inputs
+          in
+          let output_streams =
+            List.map (fun s -> Var (s, function_time)) outputs
+          in
+          let output =
+            match output_streams with
+            | [] ->
+                assert false
+                (* a function returning nothing should not exists *)
+            | [ o ] -> o
+            | l -> TupleTerm l
+          in
+          ( {
+              inst_cnt;
+              eqs_acc =
+                List.(rev_append arg_eqs (rev_append equations state.eqs_acc));
+              var_acc =
+                List.concat [ inputs; variables; outputs; state.var_acc ];
+            },
+            output )
     | Add ts ->
-        let next_state, ts = List.fold_left_map scan_term state ts in
-        (next_state, Add ts)
+        let* ts = scan_terms ts in
+        !(Add ts)
     | Sub (x, y) ->
-        let state_1, x = scan_term state x in
-        let state_2, y = scan_term state_1 y in
-        (state_2, Sub (x, y))
+        let* x = scan_term x in
+        let* y = scan_term y in
+        !(Sub (x, y))
     | Neg t ->
-        let next_state, t = scan_term state t in
-        (next_state, Neg t)
+        let* t = scan_term t in
+        !(Neg t)
     | Mul ts ->
-        let next_state, ts = List.fold_left_map scan_term state ts in
-        (next_state, Mul ts)
+        let* ts = scan_terms ts in
+        !(Mul ts)
     | Div (x, y) ->
-        let state_1, x = scan_term state x in
-        let state_2, y = scan_term state_1 y in
-        (state_2, Div (x, y))
+        let* x = scan_term x in
+        let* y = scan_term y in
+        !(Div (x, y))
     | Mod (x, y) ->
-        let state_1, x = scan_term state x in
-        let state_2, y = scan_term state_1 y in
-        (state_2, Mod (x, y))
+        let* x = scan_term x in
+        let* y = scan_term y in
+        !(Mod (x, y))
     | IfThenElse (cond, x, y) ->
-        let state_1, cond = scan_formula state cond in
-        let state_2, x = scan_term state_1 x in
-        let state_3, y = scan_term state_2 y in
-        (state_3, IfThenElse (cond, x, y))
+        let* cond = scan_formula cond in
+        let* x = scan_term x in
+        let* y = scan_term y in
+        !(IfThenElse (cond, x, y))
     | IntOfReal t ->
-        let next_state, t = scan_term state t in
-        (next_state, IntOfReal t)
+        let* t = scan_term t in
+        !(IntOfReal t)
     | RealOfInt t ->
-        let next_state, t = scan_term state t in
-        (next_state, RealOfInt t)
+        let* t = scan_term t in
+        !(RealOfInt t)
     | Formula (f, time) ->
-        let state_1, f = scan_formula state f in
-        let state_2, time = scan_term state_1 time in
-        (state_2, Formula (f, time))
+        let* f = scan_formula f in
+        let* time = scan_term time in
+        !(Formula (f, time))
   in
   let ({ inputs; outputs; equations; variables; _ } : node) =
     Context.find ctx node_name
   in
-  let state, equations = List.fold_left_map scan_formula state equations in
-  let inputs = List.map localize_stream inputs
-  and variables = List.map localize_stream variables
-  and outputs = List.map localize_stream outputs in
-  let variables = List.rev_append variables state.var_acc in
-  ( state.inst_cnt,
-    {
-      inputs;
-      variables;
-      outputs;
-      equations = List.rev_append equations state.eqs_acc;
-    } )
+  state
+  |> let* equations = scan_formulas equations in
+     fun state ->
+       let inputs = List.map localize_stream inputs
+       and variables = List.map localize_stream variables
+       and outputs = List.map localize_stream outputs in
+       let variables = List.rev_append variables state.var_acc in
+       ( state.inst_cnt,
+         {
+           inputs;
+           variables;
+           outputs;
+           equations = List.rev_append equations state.eqs_acc;
+         } )
 
 (** Modify a node to inline all nodes it contains *)
 let full_inlining ctx root_node_name =
@@ -180,7 +194,7 @@ let full_inlining ctx root_node_name =
 (* Removing tuples from nodes *)
 (* -------------------------- *)
 
-open Common.Tree
+open Tree
 
 (* Decompose a variable into a tree of variables with no tuples *)
 let decompose_var { ty; name } =
@@ -213,163 +227,165 @@ let node_tuple_status ctx name =
 (** Remove tuple expressions from the node, recreating new nodes with new
     definitions if a node call with tuple is detected *)
 let rec no_tuples ctx node_name =
-  let rec transform_simple_term state t =
-    let state, t = transform_term state t in
-    (state, try_leaf t)
-  and transform_term state t =
-    let transform_terms = List.fold_left_map transform_term in
-    let transform_simple_terms = List.fold_left_map transform_simple_term in
+  let rec transform_simple_term t =
+    let* t = transform_term t in
+    !(try_leaf t)
+  and transform_simple_terms ts state = S.map transform_simple_term ts state
+  and transform_terms ts state = S.map transform_term ts state
+  and transform_formulas fs state = S.map transform_formula fs state
+  and transform_term t =
     match t with
-    | (N | Bool _ | Int _ | Float _) as t -> (state, Leaf t)
+    | (N | Bool _ | Int _ | Float _) as t -> !(Leaf t)
     | Var (stream, time) ->
         let stream_tree = decompose_var stream in
-        let next_state, time = transform_simple_term state time in
-        (next_state, map (fun stream -> Var (stream, time)) stream_tree)
+        let* time = transform_simple_term time in
+        !(map (fun stream -> Var (stream, time)) stream_tree)
     | TupleTerm ts ->
-        let next_state, ts = transform_terms state ts in
-        (next_state, Node ts)
+        let* ts = transform_terms ts in
+        !(Node ts)
     | Function (name, time, args) -> (
-        let state_1, time = transform_simple_term state time in
-        let state_2, args = transform_terms state_1 args in
+        let* time = transform_simple_term time in
+        let* args = transform_terms args in
         match node_tuple_status ctx name with
         | HasTupleOutput ->
-            let inst_cnt, { inputs; variables; outputs; equations } =
-              instantiate_node ctx node_name name time state_2.inst_cnt
-            in
-            let state_3, equations =
-              List.fold_left_map transform_formula state_2 equations
-            in
-            let input_forest = List.map decompose_var inputs in
-            let flat_inputs = List.concat (List.map leaves input_forest) in
-            let flat_variables = flatten_variables variables in
-            let flat_outputs = flatten_variables outputs in
-            let arg_eq_trees =
-              List.map2
-                (map2 (fun x s -> Equal [ x; Var (s, time) ]))
-                args input_forest
-            in
-            let arg_eqs = List.concat (List.map leaves arg_eq_trees) in
-            let output_streams =
-              List.map (fun s -> Leaf (Var (s, time))) outputs
-            in
-            let output =
-              Node output_streams
-              (* is always a tuple, since it was established that this node indeed has a tuple output *)
-            in
-            ( {
-                inst_cnt;
-                eqs_acc =
-                  List.(
-                    rev_append arg_eqs (rev_append equations state_3.eqs_acc));
-                var_acc =
-                  List.concat
-                    [
-                      flat_inputs; flat_variables; flat_outputs; state_3.var_acc;
-                    ];
-              },
-              output )
+            fun state ->
+              let inst_cnt, { inputs; variables; outputs; equations } =
+                instantiate_node ctx node_name name time state.inst_cnt
+              in
+              { state with inst_cnt }
+              |> let* equations = transform_formulas equations in
+                 let input_forest = List.map decompose_var inputs in
+                 let flat_inputs = List.concat (List.map leaves input_forest) in
+                 let flat_variables = flatten_variables variables in
+                 let flat_outputs = flatten_variables outputs in
+                 let arg_eq_trees =
+                   List.map2
+                     (map2 (fun x s -> Equal [ x; Var (s, time) ]))
+                     args input_forest
+                 in
+                 let arg_eqs = List.concat (List.map leaves arg_eq_trees) in
+                 let output_streams =
+                   List.map (fun s -> Leaf (Var (s, time))) outputs
+                 in
+                 let output =
+                   Node output_streams
+                   (* is always a tuple, since it was established that this node indeed has a tuple output *)
+                 in
+                 fun state ->
+                   ( {
+                       inst_cnt;
+                       eqs_acc =
+                         List.(
+                           rev_append arg_eqs
+                             (rev_append equations state.eqs_acc));
+                       var_acc =
+                         List.concat
+                           [
+                             flat_inputs;
+                             flat_variables;
+                             flat_outputs;
+                             state.var_acc;
+                           ];
+                     },
+                     output )
         | HasTupleInputs ->
             let new_node_name = no_tuples ctx name in
             let args = List.concat (List.map leaves args) in
-            (state_2, Leaf (Function (new_node_name, time, args)))
+            !(Leaf (Function (new_node_name, time, args)))
         | HasNoTuples ->
             let args = List.map try_leaf args in
-            (state_2, Leaf (Function (name, time, args)))
+            !(Leaf (Function (name, time, args)))
         (* Multiple options: if the node outputs a tuple, inline the node and flatten its inputs,
            and if the node has inputs as tuples, apply [no_tuples] ont this node and call it.
            Otherhwise, keep this expression. [time] and [args] are transformed in all cases *)
         )
     | Add ts ->
-        let next_state, ts = transform_simple_terms state ts in
-        (next_state, Leaf (Add ts))
+        let* ts = transform_simple_terms ts in
+        !(Leaf (Add ts))
     | Sub (x, y) ->
-        let state_1, x = transform_simple_term state x in
-        let state_2, y = transform_simple_term state_1 y in
-        (state_2, Leaf (Sub (x, y)))
+        let* x = transform_simple_term x in
+        let* y = transform_simple_term y in
+        !(Leaf (Sub (x, y)))
     | Neg t ->
-        let next_state, t = transform_simple_term state t in
-        (next_state, Leaf (Neg t))
+        let* t = transform_simple_term t in
+        !(Leaf (Neg t))
     | Mul ts ->
-        let next_state, ts = transform_simple_terms state ts in
-        (next_state, Leaf (Mul ts))
+        let* ts = transform_simple_terms ts in
+        !(Leaf (Mul ts))
     | Div (x, y) ->
-        let state_1, x = transform_simple_term state x in
-        let state_2, y = transform_simple_term state_1 y in
-        (state_2, Leaf (Div (x, y)))
+        let* x = transform_simple_term x in
+        let* y = transform_simple_term y in
+        !(Leaf (Div (x, y)))
     | Mod (x, y) ->
-        let state_1, x = transform_simple_term state x in
-        let state_2, y = transform_simple_term state_1 y in
-        (state_2, Leaf (Mod (x, y)))
+        let* x = transform_simple_term x in
+        let* y = transform_simple_term y in
+        !(Leaf (Mod (x, y)))
     | IfThenElse (cond, x, y) ->
-        let state_1, cond = transform_formula state cond in
-        let state_2, x = transform_term state_1 x in
-        let state_3, y = transform_term state_2 y in
-        (state_3, map2 (fun x y -> IfThenElse (cond, x, y)) x y)
+        let* cond = transform_formula cond in
+        let* x = transform_term x in
+        let* y = transform_term y in
+        !(map2 (fun x y -> IfThenElse (cond, x, y)) x y)
     | IntOfReal t ->
-        let next_state, t = transform_simple_term state t in
-        (next_state, Leaf (IntOfReal t))
+        let* t = transform_simple_term t in
+        !(Leaf (IntOfReal t))
     | RealOfInt t ->
-        let next_state, t = transform_simple_term state t in
-        (next_state, Leaf (RealOfInt t))
+        let* t = transform_simple_term t in
+        !(Leaf (RealOfInt t))
     | Formula (f, time) ->
-        let state_1, f = transform_formula state f in
-        let state_2, time = transform_simple_term state_1 time in
-        (state_2, Leaf (Formula (f, time)))
-  and transform_formula state f =
-    let transform_formulas = List.fold_left_map transform_formula in
+        let* f = transform_formula f in
+        let* time = transform_simple_term time in
+        !(Leaf (Formula (f, time)))
+  and transform_formula f =
     match f with
     | Term t ->
-        let next_state, t = transform_simple_term state t in
-        (next_state, Term t)
+        let* t = transform_simple_term t in
+        !(Term t)
     | Imply (p, q) ->
-        let state_1, p = transform_formula state p in
-        let state_2, q = transform_formula state_1 q in
-        (state_2, Imply (p, q))
+        let* p = transform_formula p in
+        let* q = transform_formula q in
+        !(Imply (p, q))
     | And fs ->
-        let next_state, fs = transform_formulas state fs in
-        (next_state, And fs)
+        let* fs = transform_formulas fs in
+        !(And fs)
     | Or fs ->
-        let next_state, fs = transform_formulas state fs in
-        (next_state, Or fs)
+        let* fs = transform_formulas fs in
+        !(Or fs)
     | Not f ->
-        let next_state, f = transform_formula state f in
-        (next_state, Not f)
-    | Equal ts -> (
-        let next_state, eq_trees = List.fold_left_map transform_term state ts in
+        let* f = transform_formula f in
+        !(Not f)
+    | Equal ts ->
+        let* eq_trees = transform_terms ts in
         let eqs = List.map (fun ts -> Equal ts) (flatten eq_trees) in
-        ( next_state,
-          match eqs with [] -> Term (Bool true) | [ x ] -> x | _ -> And eqs ))
-    | NotEqual (x, y) -> (
-        let state_1, x_tree = transform_term state x in
-        let state_2, y_tree = transform_term state_1 y in
+        !(match eqs with [] -> Term (Bool true) | [ x ] -> x | _ -> And eqs)
+    | NotEqual (x, y) ->
+        let* x_tree = transform_term x in
+        let* y_tree = transform_term y in
         let neq_tree = map2 (fun x y -> NotEqual (x, y)) x_tree y_tree in
-        ( state_2,
-          match leaves neq_tree with
-          | [] -> Term (Bool false)
-          | [ x ] -> x
-          | neqs -> Or neqs ))
+        !(match leaves neq_tree with
+         | [] -> Term (Bool false)
+         | [ x ] -> x
+         | neqs -> Or neqs)
     | Less (x, y) ->
-        let state_1, x = transform_simple_term state x in
-        let state_2, y = transform_simple_term state_1 y in
-        (state_2, Less (x, y))
+        let* x = transform_simple_term x in
+        let* y = transform_simple_term y in
+        !(Less (x, y))
     | LessOrEqual (x, y) ->
-        let state_1, x = transform_simple_term state x in
-        let state_2, y = transform_simple_term state_1 y in
-        (state_2, LessOrEqual (x, y))
+        let* x = transform_simple_term x in
+        let* y = transform_simple_term y in
+        !(LessOrEqual (x, y))
     | Greater (x, y) ->
-        let state_1, x = transform_simple_term state x in
-        let state_2, y = transform_simple_term state_1 y in
-        (state_2, Greater (x, y))
+        let* x = transform_simple_term x in
+        let* y = transform_simple_term y in
+        !(Greater (x, y))
     | GreaterOrEqual (x, y) ->
-        let state_1, x = transform_simple_term state x in
-        let state_2, y = transform_simple_term state_1 y in
-        (state_2, GreaterOrEqual (x, y))
+        let* x = transform_simple_term x in
+        let* y = transform_simple_term y in
+        !(GreaterOrEqual (x, y))
   in
-  let state = initial_state () in
   let ({ name; original_name; inputs; variables; outputs; equations } : node) =
     Context.find ctx node_name
   in
-  let state, equations = List.fold_left_map transform_formula state equations in
+  let state, equations = transform_formulas equations (initial_state ()) in
   let new_name = Printf.sprintf "%s{no_tuples}" name in
   let node =
     {
@@ -391,114 +407,114 @@ let rec no_tuples ctx node_name =
 (** Create a new node in which boolean streams have nontrivial boolean terms
     replaced by new boolean streams equivalent to the formula replaced *)
 let no_formula_in_term ctx node_name =
-  let rec transform_formula state f =
-    let transform_formulas = List.fold_left_map transform_formula in
+  let rec transform_formulas fs state = S.map transform_formula fs state
+  and transform_terms ts state = S.map transform_term ts state
+  and transform_formula f =
     match f with
     | Term t ->
-        let next_state, t = transform_term state t in
-        (next_state, Term t)
+        let* t = transform_term t in
+        !(Term t)
     | Imply (p, q) ->
-        let state_1, p = transform_formula state p in
-        let state_2, q = transform_formula state_1 q in
-        (state_2, Imply (p, q))
+        let* p = transform_formula p in
+        let* q = transform_formula q in
+        !(Imply (p, q))
     | And fs ->
-        let next_state, fs = transform_formulas state fs in
-        (next_state, And fs)
+        let* fs = transform_formulas fs in
+        !(And fs)
     | Or fs ->
-        let next_state, fs = transform_formulas state fs in
-        (next_state, Or fs)
+        let* fs = transform_formulas fs in
+        !(Or fs)
     | Not f ->
-        let next_state, f = transform_formula state f in
-        (next_state, Not f)
+        let* f = transform_formula f in
+        !(Not f)
     | Equal ts ->
-        let next_state, ts = List.fold_left_map transform_term state ts in
-        (next_state, Equal ts)
+        let* ts = transform_terms ts in
+        !(Equal ts)
     | NotEqual (x, y) ->
-        let state_1, x = transform_term state x in
-        let state_2, y = transform_term state_1 y in
-        (state_2, NotEqual (x, y))
+        let* x = transform_term x in
+        let* y = transform_term y in
+        !(NotEqual (x, y))
     | Less (x, y) ->
-        let state_1, x = transform_term state x in
-        let state_2, y = transform_term state_1 y in
-        (state_2, Less (x, y))
+        let* x = transform_term x in
+        let* y = transform_term y in
+        !(Less (x, y))
     | LessOrEqual (x, y) ->
-        let state_1, x = transform_term state x in
-        let state_2, y = transform_term state_1 y in
-        (state_2, LessOrEqual (x, y))
+        let* x = transform_term x in
+        let* y = transform_term y in
+        !(LessOrEqual (x, y))
     | Greater (x, y) ->
-        let state_1, x = transform_term state x in
-        let state_2, y = transform_term state_1 y in
-        (state_2, Greater (x, y))
+        let* x = transform_term x in
+        let* y = transform_term y in
+        !(Greater (x, y))
     | GreaterOrEqual (x, y) ->
-        let state_1, x = transform_term state x in
-        let state_2, y = transform_term state_1 y in
-        (state_2, GreaterOrEqual (x, y))
-  and transform_term state t =
-    let transform_terms = List.fold_left_map transform_term in
+        let* x = transform_term x in
+        let* y = transform_term y in
+        !(GreaterOrEqual (x, y))
+  and transform_term t =
     match t with
-    | (N | Bool _ | Int _ | Float _) as t -> (state, t)
+    | (N | Bool _ | Int _ | Float _) as t -> !t
     | Var (stream, time) ->
-        let next_state, time = transform_term state time in
-        (next_state, Var (stream, time))
+        let* time = transform_term time in
+        !(Var (stream, time))
     | TupleTerm ts ->
-        let next_state, ts = transform_terms state ts in
-        (next_state, TupleTerm ts)
+        let* ts = transform_terms ts in
+        !(TupleTerm ts)
     | Function (name, time, args) ->
-        let state_1, time = transform_term state time in
-        let state_2, args = transform_terms state_1 args in
-        (state_2, Function (name, time, args))
+        let* time = transform_term time in
+        let* args = transform_terms args in
+        !(Function (name, time, args))
     | Add ts ->
-        let next_state, ts = transform_terms state ts in
-        (next_state, Add ts)
+        let* ts = transform_terms ts in
+        !(Add ts)
     | Sub (x, y) ->
-        let state_1, x = transform_term state x in
-        let state_2, y = transform_term state_1 y in
-        (state_2, Sub (x, y))
+        let* x = transform_term x in
+        let* y = transform_term y in
+        !(Sub (x, y))
     | Neg t ->
-        let next_state, t = transform_term state t in
-        (next_state, Neg t)
+        let* t = transform_term t in
+        !(Neg t)
     | Mul ts ->
-        let next_state, ts = transform_terms state ts in
-        (next_state, Mul ts)
+        let* ts = transform_terms ts in
+        !(Mul ts)
     | Div (x, y) ->
-        let state_1, x = transform_term state x in
-        let state_2, y = transform_term state_1 y in
-        (state_2, Div (x, y))
+        let* x = transform_term x in
+        let* y = transform_term y in
+        !(Div (x, y))
     | Mod (x, y) ->
-        let state_1, x = transform_term state x in
-        let state_2, y = transform_term state_1 y in
-        (state_2, Mod (x, y))
+        let* x = transform_term x in
+        let* y = transform_term y in
+        !(Mod (x, y))
     | IfThenElse (cond, x, y) ->
-        let state_1, cond = transform_formula state cond in
-        let state_2, x = transform_term state_1 x in
-        let state_3, y = transform_term state_2 y in
-        (state_3, IfThenElse (cond, x, y))
+        let* cond = transform_formula cond in
+        let* x = transform_term x in
+        let* y = transform_term y in
+        !(IfThenElse (cond, x, y))
     | IntOfReal t ->
-        let next_state, t = transform_term state t in
-        (next_state, IntOfReal t)
+        let* t = transform_term t in
+        !(IntOfReal t)
     | RealOfInt t ->
-        let next_state, t = transform_term state t in
-        (next_state, RealOfInt t)
+        let* t = transform_term t in
+        !(RealOfInt t)
     | Formula (f, time) ->
-        let state_1, f = transform_formula state f in
-        let state_2, time = transform_term state_1 time in
-        let new_var =
-          { name = Printf.sprintf "aux_%d" state_2.inst_cnt; ty = Boolean }
-        in
-        let eq_left = Imply (Term (Var (new_var, time)), f)
-        and eq_right = Imply (f, Term (Var (new_var, time))) in
-        ( {
-            inst_cnt = state_2.inst_cnt + 1;
-            eqs_acc = eq_left :: eq_right :: state_2.eqs_acc;
-            var_acc = new_var :: state_2.var_acc;
-          },
-          Var (new_var, time) )
+        let* f = transform_formula f in
+        let* time = transform_term time in
+        fun state ->
+          let new_var =
+            { name = Printf.sprintf "aux_%d" state.inst_cnt; ty = Boolean }
+          in
+          let eq_left = Imply (Term (Var (new_var, time)), f)
+          and eq_right = Imply (f, Term (Var (new_var, time))) in
+          ( {
+              inst_cnt = state.inst_cnt + 1;
+              eqs_acc = eq_left :: eq_right :: state.eqs_acc;
+              var_acc = new_var :: state.var_acc;
+            },
+            Var (new_var, time) )
   in
-  let state = initial_state () in
   let (({ variables; equations; _ } : node) as node) =
     Context.find ctx node_name
   in
-  let state, equations = List.fold_left_map transform_formula state equations in
+  let state, equations = transform_formulas equations (initial_state ()) in
   let node =
     {
       node with

@@ -14,7 +14,6 @@ let use_aez = ref false
 let use_z3 = ref false
 let proof_gen = ref false
 
-
 let spec =
   [
     ("-parse-only", Arg.Set parse_only, "  stops after parsing");
@@ -89,8 +88,7 @@ let solve (module B : BACKEND) ctx node_name =
         k k B.pp_counter_example counter_example
   | B.TrueProperty (k, proof) ->
       printf "True property, proved after a %d-induction@." k;
-      if !proof_gen then
-        printf "%a@." B.pp_proof proof
+      if !proof_gen then printf "%a@." B.pp_proof proof
   | B.DontKnow k ->
       printf "Could not prove anything, stopped after a %d-induction@." k
   | Assert_failure (s, a, b) ->

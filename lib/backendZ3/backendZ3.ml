@@ -10,7 +10,7 @@ type proof = Expr.expr * Expr.expr
 
 let name = "Z3"
 let required_transformations = Transform.[ FullInlining; NoTuples ]
-let ctx = mk_context ["proof", "true"]
+let ctx = mk_context [ ("proof", "true") ]
 let bool_sort = Boolean.mk_sort ctx
 let int_sort = Arithmetic.Integer.mk_sort ctx
 let real_sort = Arithmetic.Real.mk_sort ctx
@@ -139,8 +139,8 @@ let check_assumptions solver =
 let check_entails solver =
   let res = Solver.check solver [] in
   match res with
-  | SATISFIABLE -> false, None
-  | UNSATISFIABLE -> true, Solver.get_proof solver
+  | SATISFIABLE -> (false, None)
+  | UNSATISFIABLE -> (true, Solver.get_proof solver)
   | UNKNOWN ->
       raise (Error "It is unknown whether assumptions are consistent or not")
 
@@ -237,7 +237,7 @@ let pp_counter_example fmt model =
 
 let pp_proof fmt (bmc_proof, ind_proof) =
   (* Format.fprintf fmt
-    "Proofs are disabled for Z3@." *)
+     "Proofs are disabled for Z3@." *)
   Format.fprintf fmt
     "Proof of the bounded model checking part:@.%s@.Proof of the inductive \
      part:@.%s@."
