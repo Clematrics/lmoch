@@ -1,3 +1,5 @@
+(** Specialised hash table with strings as keys *)
+
 module HashedString : sig
   include module type of String
 

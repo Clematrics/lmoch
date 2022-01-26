@@ -1,3 +1,5 @@
+(** Extension of the {!Stdlib.Int64} module, with some bit operators *)
+
 include module type of Stdlib.Int64
 
 val ( #+ ) : t -> t -> t

@@ -60,4 +60,3 @@ let rec flatten forest =
   | [] -> []
   | Leaf _ :: _ -> [ flatten_leaves forest ]
   | Node _ :: _ -> List.concat (List.map flatten (transpose_forest forest))
-(* flatten_nodes (List.map (fun _ -> []) l) forest *)

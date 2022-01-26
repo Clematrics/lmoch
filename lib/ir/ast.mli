@@ -2,15 +2,18 @@
 type stream_type = Boolean | Integer | Real | Tuple of stream_type list
 
 type stream = { name : string; ty : stream_type }
+(** Stream description. The [name] is not garanteed to be unique but should be. *)
 
+(** Term type *)
 type term =
-  | N (* time *)
+  | N  (** Time variable *)
   | Bool of bool
   | Int of int
   | Float of float
   | Var of stream * term
   | TupleTerm of term list
-  | Function of string * term * term list (* name * time * args *)
+  | Function of string * term * term list
+      (** Function with its name, its time expression and the list of arguments *)
   | Add of term list
   | Sub of term * term
   | Neg of term
@@ -21,7 +24,7 @@ type term =
   | IntOfReal of term
   | RealOfInt of term
   | Formula of formula * term
-(* the term indicates the local time of this formula *)
+      (** A formula is annotated by a time term, useful for some transformations *)
 
 and formula =
   | Term of term
@@ -47,4 +50,7 @@ type node = {
 (** Structure of a node *)
 
 val print_term : Format.formatter -> term -> unit
+(** Pretty-printing of a term *)
+
 val print_formula : Format.formatter -> formula -> unit
+(** Pretty-printing of a formula *)

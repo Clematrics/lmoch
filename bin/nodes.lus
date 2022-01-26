@@ -1,6 +1,14 @@
 node cnt() returns (ok: bool);
 var cnt, time : int;
 let
+	cnt = 0 -> (pre cnt + 1) mod 8;
+	time = 0 -> pre time + 1;
+	ok = time mod 8 = cnt;
+tel;
+
+node cnt_bad() returns (ok: bool);
+var cnt, time : int;
+let
 	cnt = 0 -> pre cnt + 1 mod 8;
 	time = 0 -> pre time + 1;
 	ok = time mod 8 = cnt;
@@ -22,6 +30,21 @@ let
    ok = test_sum = sum;
 tel;
 
+node bad_sum_window_2(x: int) returns (sum:int);
+var x_n_m_1 : int;
+let
+	x_n_m_1 = 0 -> x ;
+	sum = x -> pre sum + x - pre x_n_m_1 ;
+tel;
+
+node test_bad_sum_window_2(x:int) returns (ok:bool);
+var test_sum, sum : int;
+let
+   sum = bad_sum_window_2(x) ;
+   test_sum =
+		x -> x + pre x;
+   ok = test_sum = sum;
+tel;
 
 node sum_window_4(x:int) returns (sum:int);
 var x_n_m_3 : int;

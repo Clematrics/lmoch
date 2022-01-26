@@ -12,10 +12,10 @@
       [
 		"and", AND;
 		"bool", BOOL;
-		"const", CONST;
+		(* "const", CONST; *)
 		"div", DIV;
 		"else", ELSE;
-		"end", END;
+		(* "end", END; *)
 		"false", CONST_BOOL(false);
         "fby", FBY;
 		"if", IF;

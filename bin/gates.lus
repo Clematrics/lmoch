@@ -3,7 +3,24 @@ let
 	out = not in;
 tel;
 
-node main(in: bool) returns (out: bool);
+node test_not_gate() returns (ok: bool);
+var in, out : bool;
 let
-   out = not_gate(in) ;
+	in = false fby true;
+	out = true fby false;
+	ok = not_gate(in) = out;
+tel;
+
+node and_gate(x, y: bool) returns (out: bool);
+let
+	out = x and y;
+tel;
+
+node test_and_gate() returns (ok: bool);
+var x, y, out : bool;
+let
+	x = false fby false fby true fby true;
+	y = false fby true fby false fby true;
+	out = false fby false fby false fby true;
+	ok = and_gate(x, y) = out;
 tel;

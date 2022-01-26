@@ -31,6 +31,11 @@ val make_delta_p :
 
 val k_induction :
   ?max:int -> constraint_builder -> constraint_builder -> int -> 'a
+(** [k_induction ~max delta_incr p_incr n] performs a k-induction starting from
+    {i k=n}. The [max] value is set to 20 by default *)
 
 val pp_counter_example : Format.formatter -> counter_example -> unit
+(** Pretty-print a counter example given by an instance of the backend *)
+
 val pp_proof : Format.formatter -> proof -> unit
+(** Pretty-print a proof given by an instance of the backend *)

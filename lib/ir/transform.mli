@@ -4,13 +4,13 @@ type t =
   | NoFormulaInTerm
       (** Transformations available on a node
 
-          - {!constr:FullInlining} modifies a node to inline all nodes it
+          - {!const:FullInlining} modifies a node to inline all nodes it
             contains. This transforms the node in place
-          - {!constr:NoTuples} removes all tuple expressions from the equations
+          - {!const:NoTuples} removes all tuple expressions from the equations
             of a node. It might inline other nodes if necessary (if the inputs
             or outputs contain tuples), but not if that node has equations with
             tuples.
-          - {!constr:NoFormulaInTerm} removes formulas in terms, adding new
+          - {!const:NoFormulaInTerm} removes formulas in terms, adding new
             streams with new equations such that the added streams are
             equivalent to the formulas. This transforms the node in-place.
             Necessary for the Alt-ergo Zero backend *)
